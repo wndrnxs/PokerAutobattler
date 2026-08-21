@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>포커 오토배틀러 — 프로토타입</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --felt-dark:#0a2b20;
+  --felt:#0f3d2e;
+  --felt-light:#154a37;
+  --gold:#c9a24b;
+  --gold-bright:#e0bf6f;
+  --cream:#f3ead8;
+  --ink:#1b1b1b;
+  --crimson:#a8283c;
+  --violet:#8b5fbf;
+  --steel:#4a6fa5;
+  --danger:#c0435a;
+  --ok:#4f9b6e;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:
+    radial-gradient(ellipse at top, var(--felt-light) 0%, var(--felt) 45%, var(--felt-dark) 100%);
+  min-height:100vh;
+  font-family:'Inter',sans-serif;
+  color:var(--cream);
+  padding:20px 14px 60px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+
+.app{ width:100%; max-width:560px; }
+
+h1,h2,h3{ font-family:'Fraunces',serif; font-weight:700; margin:0; }
+
+/* ---------- HUD ---------- */
+.hud{
+  display:flex; justify-content:space-between; align-items:center;
+  background:rgba(0,0,0,0.25);
+  border:1px solid rgba(201,162,75,0.35);
+  border-radius:14px;
+  padding:10px 16px;
+  margin-bottom:16px;
+}
+.hud-title{ font-size:15px; letter-spacing:0.04em; color:var(--gold-bright); }
+.hud-stats{ display:flex; gap:16px; font-family:'IBM Plex Mono',monospace; font-size:13px; }
+.hud-stats span b{ color:var(--gold-bright); font-weight:600; }
+
+/* ---------- Table panel ---------- */
+.table{
+  background:var(--felt);
+  border:1px solid rgba(201,162,75,0.25);
+  border-radius:20px;
+  padding:22px 18px 26px;
+  box-shadow: inset 0 0 60px rgba(0,0,0,0.35), 0 10px 30px rgba(0,0,0,0.3);
+  position:relative;
+}
+.table::before{
+  content:'';
+  position:absolute; inset:8px;
+  border:1px solid rgba(201,162,75,0.12);
+  border-radius:14px;
+  pointer-events:none;
+}
+
+.phase-title{ font-size:22px; margin-bottom:4px; color:var(--cream); }
+.phase-sub{ font-size:13px; color:rgba(243,234,216,0.65); margin-bottom:18px; }
+
+/* ---------- Intro ---------- */
+.intro{ text-align:center; padding:30px 10px; }
+.intro .suits{ font-size:40px; letter-spacing:14px; margin-bottom:14px; color:var(--gold-bright); }
+.intro h1{ font-size:30px; margin-bottom:10px; }
+.intro p{ font-size:14px; line-height:1.7; color:rgba(243,234,216,0.75); max-width:400px; margin:0 auto 24px; }
+
+/* ---------- Buttons ---------- */
+.btn{
+  font-family:'Inter',sans-serif; font-weight:600; font-size:14px;
+  border:none; border-radius:10px; cursor:pointer;
+  padding:12px 22px;
+  background:var(--gold); color:var(--ink);
+  transition:transform .12s ease, background .12s ease;
+}
+.btn:hover{ background:var(--gold-bright); transform:translateY(-1px); }
+.btn:active{ transform:translateY(0); }
+.btn:disabled{ opacity:0.35; cursor:not-allowed; transform:none; }
+.btn.secondary{
+  background:transparent; color:var(--cream);
+  border:1px solid rgba(243,234,216,0.4);
+}
+.btn.secondary:hover{ background:rgba(243,234,216,0.08); }
+.btn-row{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+
+/* ---------- Card fan ---------- */
+.hand-zone{ display:flex; justify-content:center; padding:20px 0 8px; min-height:170px; }
+.card-fan{ display:flex; }
+.playing-card{
+  width:70px; height:100px;
+  background:var(--cream);
+  border-radius:8px;
+  margin-left:-22px;
+  box-shadow:0 4px 10px rgba(0,0,0,0.4);
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:6px 7px;
+  cursor:pointer;
+  transition:transform .15s ease, box-shadow .15s ease, margin-top .15s ease;
+  position:relative;
+  font-family:'IBM Plex Mono',monospace;
+  user-select:none;
+}
+.playing-card:first-child{ margin-left:0; }
+.playing-card.red{ color:var(--crimson); }
+.playing-card.black{ color:var(--ink); }
+.playing-card .rank{ font-size:17px; font-weight:600; line-height:1; }
+.playing-card .suit-big{ font-size:26px; align-self:center; }
+.playing-card .rank.bottom{ align-self:flex-end; transform:rotate(180deg); }
+.playing-card:hover{ transform:translateY(-8px); }
+.playing-card.selected{
+  transform:translateY(-20px);
+  box-shadow:0 0 0 3px var(--gold-bright), 0 8px 16px rgba(0,0,0,0.5);
+}
+
+.hand-rank-banner{
+  text-align:center; padding:10px; margin:6px 0 14px;
+  font-family:'Fraunces',serif; font-size:18px; font-weight:600;
+  color:var(--gold-bright);
+  border-top:1px solid rgba(201,162,75,0.25);
+  border-bottom:1px solid rgba(201,162,75,0.25);
+  min-height:26px;
+}
+.hand-rank-banner .count{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:rgba(243,234,216,0.6); display:block; margin-top:2px; }
+
+/* ---------- Squad row ---------- */
+.squad-row{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; padding:14px 0; }
+.unit{
+  width:78px; text-align:center;
+}
+.unit-token{
+  width:52px; height:52px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; margin:0 auto 6px;
+  border:2px solid rgba(0,0,0,0.25);
+  box-shadow:0 3px 8px rgba(0,0,0,0.35);
+}
+.unit-name{ font-size:11px; color:rgba(243,234,216,0.75); margin-bottom:4px; }
+.hp-bar-bg{ width:100%; height:6px; background:rgba(0,0,0,0.35); border-radius:4px; overflow:hidden; }
+.hp-bar-fill{ height:100%; background:var(--ok); transition:width .25s ease; }
+.unit.dead .unit-token{ opacity:0.25; }
+.unit.dead .unit-name{ opacity:0.4; text-decoration:line-through; }
+.unit-stats{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:rgba(243,234,216,0.55); margin-top:2px; }
+
+.vs-label{ text-align:center; font-family:'Fraunces',serif; font-size:14px; color:var(--gold); margin:6px 0; letter-spacing:0.1em; }
+
+/* ---------- Battle log ---------- */
+.battle-log{
+  background:rgba(0,0,0,0.35);
+  border:1px solid rgba(201,162,75,0.25);
+  border-radius:10px;
+  padding:12px 14px;
+  height:150px;
+  overflow-y:auto;
+  font-family:'IBM Plex Mono',monospace;
+  font-size:12px;
+  line-height:1.7;
+  margin:14px 0;
+}
+.battle-log div{ opacity:0; animation:fadeIn .25s forwards; }
+@keyframes fadeIn{ to{ opacity:1; } }
+.battle-log .win-line{ color:var(--gold-bright); font-weight:600; }
+.battle-log .lose-line{ color:var(--danger); font-weight:600; }
+
+/* ---------- Artifact cards ---------- */
+.artifact-grid{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin:16px 0; }
+.artifact-card{
+  width:150px; background:rgba(0,0,0,0.25);
+  border:1px solid rgba(201,162,75,0.35);
+  border-radius:12px; padding:14px 12px; text-align:center;
+  cursor:pointer; transition:transform .12s ease, border-color .12s ease;
+}
+.artifact-card:hover{ transform:translateY(-4px); border-color:var(--gold-bright); }
+.artifact-card .icon{ font-size:24px; margin-bottom:8px; }
+.artifact-card .name{ font-size:13px; font-weight:600; margin-bottom:6px; color:var(--gold-bright); }
+.artifact-card .desc{ font-size:11px; color:rgba(243,234,216,0.7); line-height:1.5; }
+
+.owned-artifacts{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.owned-artifacts span{
+  font-size:11px; background:rgba(201,162,75,0.15); border:1px solid rgba(201,162,75,0.3);
+  padding:3px 8px; border-radius:20px; color:var(--gold-bright);
+}
+
+.result-banner{ text-align:center; margin:10px 0 18px; }
+.result-banner .big{ font-family:'Fraunces',serif; font-size:26px; margin-bottom:6px; }
+.result-banner.win .big{ color:var(--gold-bright); }
+.result-banner.lose .big{ color:var(--danger); }
+.result-banner .gold-gain{ font-family:'IBM Plex Mono',monospace; font-size:14px; color:rgba(243,234,216,0.8); }
+
+.footnote{ text-align:center; font-size:11px; color:rgba(243,234,216,0.4); margin-top:18px; line-height:1.6; }
+
+@media (max-width:420px){
+  .playing-card{ width:58px; height:86px; margin-left:-20px; }
+  .playing-card .suit-big{ font-size:20px; }
+}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+/* =========================================================
+   포커 오토배틀러 프로토타입
+   - 족보 판정 로직은 별도 검증 완료
+   ========================================================= */
+
+const SUITS = ['♠','♥','♦','♣'];
+const SUIT_INFO = {
+  '♠': { key:'spade',   name:'스페이드', role:'딜러',  color:'#4A6FA5', bg:'#dfe8f5' },
+  '♣': { key:'club',    name:'클럽',    role:'탱커',  color:'#c9a24b', bg:'#f5eeda' },
+  '♥': { key:'heart',   name:'하트',    role:'힐러',  color:'#a8283c', bg:'#f7dde1' },
+  '♦': { key:'diamond', name:'다이아',  role:'마법사', color:'#8b5fbf', bg:'#ecdff5' },
+};
+const RANK_LABEL = {11:'J',12:'Q',13:'K',14:'A'};
+function rankLabel(r){ return RANK_LABEL[r] || String(r); }
+function isRedSuit(s){ return s==='♥' || s==='♦'; }
+
+function buildDeck(){
+  const deck=[];
+  for(const s of SUITS) for(let r=2;r<=14;r++) deck.push({suit:s, rank:r});
+  return deck;
+}
+function shuffle(arr){
+  const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+
+function evaluateHand(cards){
+  const ranks = cards.map(c=>c.rank).sort((a,b)=>a-b);
+  const suits = cards.map(c=>c.suit);
+  const isFlush = suits.every(s=>s===suits[0]);
+  const uniqueRanks = [...new Set(ranks)];
+  let isStraight=false, straightHigh=ranks[4];
+  if(uniqueRanks.length===5){
+    if(ranks[4]-ranks[0]===4) isStraight=true;
+    if(JSON.stringify(ranks)===JSON.stringify([2,3,4,5,14])){ isStraight=true; straightHigh=5; }
+  }
+  const counts={};
+  for(const r of ranks) counts[r]=(counts[r]||0)+1;
+  const groups = Object.entries(counts).map(([r,c])=>({rank:Number(r), count:c}))
+    .sort((a,b)=> b.count-a.count || b.rank-a.rank);
+  const cl = groups.map(g=>g.count);
+
+  let type, rankIndex, nameKo;
+  if(isStraight && isFlush && straightHigh===14 && ranks[0]!==2){ type='royal_flush'; rankIndex=9; nameKo='로열 스트레이트 플러시'; }
+  else if(isStraight && isFlush){ type='straight_flush'; rankIndex=8; nameKo='스트레이트 플러시'; }
+  else if(cl[0]===4){ type='four_kind'; rankIndex=7; nameKo='포카드'; }
+  else if(cl[0]===3 && cl[1]===2){ type='full_house'; rankIndex=6; nameKo='풀하우스'; }
+  else if(isFlush){ type='flush'; rankIndex=5; nameKo='플러시'; }
+  else if(isStraight){ type='straight'; rankIndex=4; nameKo='스트레이트'; }
+  else if(cl[0]===3){ type='three_kind'; rankIndex=3; nameKo='트리플'; }
+  else if(cl[0]===2 && cl[1]===2){ type='two_pair'; rankIndex=2; nameKo='투페어'; }
+  else if(cl[0]===2){ type='pair'; rankIndex=1; nameKo='원페어'; }
+  else { type='high_card'; rankIndex=0; nameKo='하이카드'; }
+
+  return { type, rankIndex, nameKo, groups, isFlush, isStraight };
+}
+
+/* ---------- Artifacts pool ---------- */
+const ARTIFACT_POOL = [
+  { id:'club_def',   icon:'🛡️', name:'강화 방패',   desc:'클럽(탱커) 유닛의 방어력 +30%' },
+  { id:'heart_heal',  icon:'✨', name:'성수',        desc:'하트(힐러) 유닛의 치유량 +40%' },
+  { id:'spade_atk',   icon:'⚔️', name:'예리한 날',   desc:'스페이드(딜러) 유닛의 공격력 +25%' },
+  { id:'diamond_pierce', icon:'🔮', name:'마력 관통', desc:'다이아(마법사) 유닛의 방어 무시율 +25%p' },
+  { id:'straight_speed', icon:'⚡', name:'연계 감각', desc:'스트레이트 완성 시 전군 속도 보너스 +10%p 추가' },
+  { id:'gold_bonus', icon:'💰', name:'딜러의 눈썰미', desc:'라운드 승리 시 골드 획득 +5 고정' },
+  { id:'pair_bonus', icon:'🎯', name:'짝패의 비기',  desc:'페어 계열 족보의 버프 유닛에게 체력 +15% 추가' },
+];
+
+/* ---------- Game state ---------- */
+const state = {
+  phase:'intro',        // intro, draw, squad, battle, result, artifact, gameover
+  round:1,
+  gold:0,
+  hand:[],
+  selected:[],
+  handResult:null,
+  playerSquad:[],
+  enemySquad:[],
+  battleEvents:[],
+  battleIndex:0,
+  battleResult:null,
+  artifacts:[],
+  artifactChoices:[],
+  lastGoldGain:0,
+};
+
+function baseStatsFor(rank, suit){
+  const info = SUIT_INFO[suit];
+  let hp = 20 + rank*3;
+  let atk = 4 + rank*1.2;
+  let def = 2 + rank*0.4;
+  let speed = 8 + (14-rank)*0.25;
+  let heal = 0, pierce = 0;
+
+  if(info.key==='spade'){ atk *= 1.3; }
+  if(info.key==='club'){ def *= 2.1; hp *= 1.3; atk *= 0.7; }
+  if(info.key==='heart'){ heal = atk*0.9; atk *= 0.45; }
+  if(info.key==='diamond'){ atk *= 1.1; pierce = 0.5; }
+
+  return { hp:Math.round(hp), maxHp:Math.round(hp), atk:Math.round(atk*10)/10, def:Math.round(def*10)/10, speed:Math.round(speed*10)/10, heal:Math.round(heal*10)/10, pierce };
+}
+
+function applyArtifactsToUnit(unit, artifacts){
+  for(const aid of artifacts){
+    if(aid==='club_def' && unit.suitKey==='club') unit.def *= 1.3;
+    if(aid==='heart_heal' && unit.suitKey==='heart') unit.heal *= 1.4;
+    if(aid==='spade_atk' && unit.suitKey==='spade') unit.atk *= 1.25;
+    if(aid==='diamond_pierce' && unit.suitKey==='diamond') unit.pierce = Math.min(1, unit.pierce+0.25);
+    if(aid==='pair_bonus' && unit.buffedByPair) { unit.hp *= 1.15; unit.maxHp *= 1.15; }
+  }
+}
+
+function cardsToSquad(cards, handResult, artifacts){
+  const units = cards.map((c,idx)=>{
+    const s = baseStatsFor(c.rank, c.suit);
+    return {
+      id:'p'+idx, suit:c.suit, suitKey:SUIT_INFO[c.suit].key, rank:c.rank,
+      name:`${SUIT_INFO[c.suit].name} ${rankLabel(c.rank)}`,
+      role:SUIT_INFO[c.suit].role,
+      hp:s.hp, maxHp:s.maxHp, atk:s.atk, def:s.def, speed:s.speed, heal:s.heal, pierce:s.pierce,
+      alive:true, buffedByPair:false,
+    };
+  });
+
+  // hand-rank bonuses
+  const grpRanks = handResult.groups.filter(g=>g.count>=2).map(g=>g.rank);
+  for(const u of units){
+    if(grpRanks.includes(u.rank)){
+      u.buffedByPair = true;
+      if(handResult.type==='four_kind'){ u.atk*=1.5; }
+      else if(handResult.type==='full_house'){
+        const grp = handResult.groups.find(g=>g.rank===u.rank);
+        if(grp.count===3){ u.atk*=1.3; } else { u.hp*=1.2; u.maxHp*=1.2; }
+      }
+      else if(handResult.type==='three_kind'){ u.atk*=1.3; u.hp*=1.1; u.maxHp*=1.1; }
+      else { u.atk*=1.2; } // pair / two_pair
+    }
+  }
+  if(handResult.isFlush){
+    for(const u of units) u.atk *= 1.25;
+  }
+  if(handResult.isStraight){
+    let speedBonus = 1.1;
+    if(artifacts.includes('straight_speed')) speedBonus += 0.10;
+    for(const u of units) u.speed *= speedBonus;
+  }
+  if(handResult.type==='straight_flush' || handResult.type==='royal_flush'){
+    for(const u of units){ u.atk*=1.3; u.hp*=1.2; u.maxHp*=1.2; u.speed*=1.2; }
+  }
+
+  for(const u of units){
+    applyArtifactsToUnit(u, artifacts);
+    u.hp = Math.round(u.hp); u.maxHp = Math.round(u.maxHp);
+    u.atk = Math.round(u.atk*10)/10; u.def = Math.round(u.def*10)/10;
+  }
+  return units;
+}
+
+function generateEnemySquad(round){
+  const count = Math.min(5, 2+Math.floor(round/1.5));
+  const scale = 1 + round*0.16;
+  const units=[];
+  for(let i=0;i<count;i++){
+    const suit = SUITS[Math.floor(Math.random()*4)];
+    const rank = 6 + Math.floor(Math.random()*9); // 6~14
+    const s = baseStatsFor(rank, suit);
+    units.push({
+      id:'e'+i, suit, suitKey:SUIT_INFO[suit].key, rank,
+      name:`적 ${SUIT_INFO[suit].name} ${rankLabel(rank)}`,
+      role:SUIT_INFO[suit].role,
+      hp:Math.round(s.hp*scale), maxHp:Math.round(s.hp*scale),
+      atk:Math.round(s.atk*scale*10)/10, def:Math.round(s.def*scale*10)/10,
+      speed:s.speed, heal:Math.round(s.heal*scale*10)/10, pierce:s.pierce,
+      alive:true,
+    });
+  }
+  return units;
+}
+
+function cloneUnits(units){ return units.map(u=>({...u})); }
+
+function simulateBattle(playerUnits, enemyUnits){
+  let p = cloneUnits(playerUnits);
+  let e = cloneUnits(enemyUnits);
+  const events = [];
+  events.push({ text:`⚔️ 전투 시작 — 아군 ${p.length} vs 적군 ${e.length}`, p:cloneUnits(p), e:cloneUnits(e) });
+
+  let tick=0;
+  const maxTicks=60;
+  while(p.some(u=>u.alive) && e.some(u=>u.alive) && tick<maxTicks){
+    tick++;
+    const actors = [...p,...e].filter(u=>u.alive).sort((a,b)=>b.speed-a.speed);
+    for(const actor of actors){
+      if(!actor.alive) continue;
+      const isPlayerSide = actor.id.startsWith('p');
+      const allies = isPlayerSide ? p : e;
+      const foes = isPlayerSide ? e : p;
+      if(!foes.some(u=>u.alive)) break;
+
+      if(actor.heal>0){
+        const target = allies.filter(u=>u.alive && u.hp<u.maxHp).sort((a,b)=>a.hp-b.hp)[0];
+        if(target){
+          const healAmt = Math.round(actor.heal);
+          target.hp = Math.min(target.maxHp, target.hp+healAmt);
+          events.push({ text:`✨ ${actor.name}이(가) ${target.name}을(를) ${healAmt} 회복 (HP ${target.hp}/${target.maxHp})`, p:cloneUnits(p), e:cloneUnits(e) });
+          continue;
+        }
+      }
+      const alive_foes = foes.filter(u=>u.alive);
+      if(alive_foes.length===0) break;
+      const target = alive_foes.sort((a,b)=>a.hp-b.hp)[0];
+      const defEff = actor.pierce ? target.def*(1-actor.pierce) : target.def;
+      const dmg = Math.max(1, Math.round(actor.atk - defEff));
+      target.hp -= dmg;
+      if(target.hp<=0){
+        target.hp=0; target.alive=false;
+        events.push({ text:`💥 ${actor.name} → ${target.name}에게 ${dmg} 피해! ${target.name} 쓰러짐`, p:cloneUnits(p), e:cloneUnits(e) });
+      } else {
+        events.push({ text:`⚔️ ${actor.name} → ${target.name}에게 ${dmg} 피해 (HP ${target.hp}/${target.maxHp})`, p:cloneUnits(p), e:cloneUnits(e) });
+      }
+      if(!foes.some(u=>u.alive)) break;
+    }
+  }
+  const playerWon = p.some(u=>u.alive) && !e.some(u=>u.alive);
+  events.push({ text: playerWon ? '🏆 승리!' : '☠️ 패배...', p:cloneUnits(p), e:cloneUnits(e), final:true, win:playerWon });
+  return { events, win: playerWon };
+}
+
+/* ================= RENDER ================= */
+const app = document.getElementById('app');
+
+function render(){
+  let html = `
+    <div class="hud">
+      <div class="hud-title">🂡 포커 오토배틀러</div>
+      <div class="hud-stats">
+        <span>ROUND <b>${state.round}</b></span>
+        <span>GOLD <b>${state.gold}</b></span>
+      </div>
+    </div>
+    <div class="table">
+  `;
+
+  if(state.phase==='intro') html += renderIntro();
+  else if(state.phase==='draw') html += renderDraw();
+  else if(state.phase==='squad') html += renderSquad();
+  else if(state.phase==='battle') html += renderBattle();
+  else if(state.phase==='result') html += renderResult();
+  else if(state.phase==='artifact') html += renderArtifactPick();
+  else if(state.phase==='gameover') html += renderGameOver();
+
+  html += `</div>`;
+  html += `<div class="footnote">프로토타입 데모 — 카드→유닛 변환, 족보 보너스, 자동전투, 아티팩트 성장 루프를 검증하기 위한 단순화 버전입니다.</div>`;
+  app.innerHTML = html;
+  attachHandlers();
+}
+
+function renderIntro(){
+  return `
+    <div class="intro">
+      <div class="suits">♠ ♥ ♦ ♣</div>
+      <h1>포커 오토배틀러</h1>
+      <p>카드 7장을 받아 5장으로 최고의 족보를 만드세요. 완성된 핸드가 유닛 5기로 변환되어 자동으로 전투를 치릅니다. 승리할수록 라운드가 강해지고, 아티팩트로 영구 성장할 수 있습니다.</p>
+      <div class="btn-row"><button class="btn" data-action="start">게임 시작</button></div>
+    </div>
+  `;
+}
+
+function renderDraw(){
+  const cardsHtml = state.hand.map((c,i)=>{
+    const red = isRedSuit(c.suit);
+    const sel = state.selected.includes(i);
+    return `
+      <div class="playing-card ${red?'red':'black'} ${sel?'selected':''}" data-action="toggle" data-idx="${i}">
+        <div class="rank">${rankLabel(c.rank)}</div>
+        <div class="suit-big">${c.suit}</div>
+        <div class="rank bottom">${rankLabel(c.rank)}</div>
+      </div>
+    `;
+  }).join('');
+
+  let bannerHtml = `카드 5장을 선택하세요 (${state.selected.length}/5)`;
+  let bannerSub = '';
+  if(state.selected.length===5){
+    const cards = state.selected.map(i=>state.hand[i]);
+    const res = evaluateHand(cards);
+    state.handResult = res;
+    bannerHtml = res.nameKo;
+    bannerSub = `<span class="count">족보 등급 ${res.rankIndex+1} / 10</span>`;
+  } else {
+    state.handResult = null;
+  }
+
+  return `
+    <div class="phase-title">1. 패 선택</div>
+    <div class="phase-sub">7장 중 5장을 선택해 족보를 완성하세요</div>
+    <div class="hand-zone"><div class="card-fan">${cardsHtml}</div></div>
+    <div class="hand-rank-banner">${bannerHtml}${bannerSub}</div>
+    ${state.artifacts.length ? `<div class="owned-artifacts">${state.artifacts.map(a=>{
+      const art = ARTIFACT_POOL.find(x=>x.id===a);
+      return `<span>${art.icon} ${art.name}</span>`;
+    }).join('')}</div>` : ''}
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn secondary" data-action="redraw">패 다시 뽑기</button>
+      <button class="btn" data-action="confirmHand" ${state.selected.length===5?'':'disabled'}>부대 편성 확정</button>
+    </div>
+  `;
+}
+
+function renderUnitRow(units){
+  return `<div class="squad-row">${units.map(u=>{
+    const info = Object.values(SUIT_INFO).find(s=>s.key===u.suitKey);
+    const pct = Math.max(0, Math.round((u.hp/u.maxHp)*100));
+    return `
+      <div class="unit ${u.alive?'':'dead'}">
+        <div class="unit-token" style="background:${info.bg}; color:${info.color};">${u.suit}</div>
+        <div class="unit-name">${u.name}</div>
+        <div class="hp-bar-bg"><div class="hp-bar-fill" style="width:${pct}%; background:${pct>50?'#4f9b6e':pct>20?'#c9a24b':'#c0435a'};"></div></div>
+        <div class="unit-stats">HP${u.hp} ATK${u.atk} DEF${u.def}</div>
+      </div>`;
+  }).join('')}</div>`;
+}
+
+function renderSquad(){
+  const cards = state.selected.map(i=>state.hand[i]);
+  const res = state.handResult;
+  state.playerSquad = cardsToSquad(cards, res, state.artifacts);
+  state.enemySquad = generateEnemySquad(state.round);
+
+  return `
+    <div class="phase-title">2. 부대 편성 결과 — ${res.nameKo}</div>
+    <div class="phase-sub">족보 보너스가 반영된 아군 부대입니다</div>
+    ${renderUnitRow(state.playerSquad)}
+    <div class="vs-label">VS — ROUND ${state.round} 적군</div>
+    ${renderUnitRow(state.enemySquad)}
+    <div class="btn-row" style="margin-top:18px;">
+      <button class="btn" data-action="startBattle">전투 개시</button>
+    </div>
+  `;
+}
+
+function renderBattle(){
+  if(!state.battleEvents.length){
+    const sim = simulateBattle(state.playerSquad, state.enemySquad);
+    state.battleEvents = sim.events;
+    state.battleResult = sim.win;
+    state.battleIndex = 0;
+  }
+  const ev = state.battleEvents[state.battleIndex] || state.battleEvents[state.battleEvents.length-1];
+  const logLines = state.battleEvents.slice(0, state.battleIndex+1).map(e=>{
+    let cls = '';
+    if(e.final) cls = e.win ? 'win-line' : 'lose-line';
+    return `<div class="${cls}">${e.text}</div>`;
+  }).join('');
+
+  return `
+    <div class="phase-title">3. 전투</div>
+    <div class="phase-sub">속도 순으로 자동 진행됩니다</div>
+    ${renderUnitRow(ev.p)}
+    <div class="vs-label">VS</div>
+    ${renderUnitRow(ev.e)}
+    <div class="battle-log" id="battleLog">${logLines}</div>
+    <div class="btn-row">
+      <button class="btn secondary" data-action="skipBattle">전투 스킵</button>
+    </div>
+  `;
+}
+
+function renderResult(){
+  const win = state.battleResult;
+  return `
+    <div class="result-banner ${win?'win':'lose'}">
+      <div class="big">${win?'승리!':'패배...'}</div>
+      ${win?`<div class="gold-gain">골드 +${state.lastGoldGain}</div>`:'<div class="gold-gain">부대가 전멸했습니다</div>'}
+    </div>
+    <div class="btn-row">
+      ${win
+        ? `<button class="btn" data-action="toArtifact">계속하기</button>`
+        : `<button class="btn" data-action="restart">새 게임 시작</button>`}
+    </div>
+  `;
+}
+
+function renderArtifactPick(){
+  const cards = state.artifactChoices.map(a=>`
+    <div class="artifact-card" data-action="pickArtifact" data-id="${a.id}">
+      <div class="icon">${a.icon}</div>
+      <div class="name">${a.name}</div>
+      <div class="desc">${a.desc}</div>
+    </div>
+  `).join('');
+  return `
+    <div class="phase-title">라운드 ${state.round} 클리어</div>
+    <div class="phase-sub">아티팩트 하나를 선택해 영구적으로 보유하세요</div>
+    <div class="artifact-grid">${cards}</div>
+    <div class="btn-row"><button class="btn secondary" data-action="skipArtifact">건너뛰기</button></div>
+  `;
+}
+
+function renderGameOver(){
+  return `
+    <div class="result-banner lose">
+      <div class="big">게임 종료</div>
+      <div class="gold-gain">${state.round}라운드까지 도달, 최종 골드 ${state.gold}</div>
+    </div>
+    <div class="btn-row"><button class="btn" data-action="restart">다시 시작</button></div>
+  `;
+}
+
+/* ================= ACTIONS ================= */
+function dealHand(){
+  const deck = shuffle(buildDeck());
+  state.hand = deck.slice(0,7);
+  state.selected = [];
+  state.handResult = null;
+}
+
+function attachHandlers(){
+  app.querySelectorAll('[data-action]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const action = el.dataset.action;
+      if(action==='start'){ state.round=1; state.gold=0; state.artifacts=[]; dealHand(); state.phase='draw'; render(); }
+      else if(action==='toggle'){
+        const idx = Number(el.dataset.idx);
+        const pos = state.selected.indexOf(idx);
+        if(pos>=0) state.selected.splice(pos,1);
+        else if(state.selected.length<5) state.selected.push(idx);
+        render();
+      }
+      else if(action==='redraw'){ dealHand(); render(); }
+      else if(action==='confirmHand'){ state.phase='squad'; state.battleEvents=[]; render(); }
+      else if(action==='startBattle'){ state.phase='battle'; state.battleEvents=[]; render(); startBattlePlayback(); }
+      else if(action==='skipBattle'){ finishBattlePlayback(true); }
+      else if(action==='toArtifact'){
+        const gain = 10 + state.round*3 + (state.artifacts.includes('gold_bonus')?5:0);
+        state.gold += gain;
+        state.round += 1;
+        const pool = ARTIFACT_POOL.filter(a=>!state.artifacts.includes(a.id));
+        state.artifactChoices = shuffle(pool).slice(0,2);
+        if(state.artifactChoices.length===0){ dealHand(); state.phase='draw'; render(); return; }
+        state.phase='artifact'; render();
+      }
+      else if(action==='pickArtifact'){
+        state.artifacts.push(el.dataset.id);
+        dealHand(); state.phase='draw'; render();
+      }
+      else if(action==='skipArtifact'){ dealHand(); state.phase='draw'; render(); }
+      else if(action==='restart'){ state.round=1; state.gold=0; state.artifacts=[]; state.phase='intro'; render(); }
+    });
+  });
+}
+
+let battleTimer=null;
+function startBattlePlayback(){
+  clearInterval(battleTimer);
+  state.battleIndex = 0;
+  const total = state.battleEvents.length || 1;
+  battleTimer = setInterval(()=>{
+    state.battleIndex++;
+    if(state.battleIndex >= total-1){
+      clearInterval(battleTimer);
+      finishBattlePlayback(false);
+      return;
+    }
+    updateBattleDOM();
+  }, 550);
+}
+function updateBattleDOM(){
+  render();
+  const log = document.getElementById('battleLog');
+  if(log) log.scrollTop = log.scrollHeight;
+}
+function finishBattlePlayback(skip){
+  clearInterval(battleTimer);
+  if(skip){ state.battleIndex = state.battleEvents.length-1; }
+  render();
+  setTimeout(()=>{
+    state.lastGoldGain = 10 + state.round*3 + (state.artifacts.includes('gold_bonus')?5:0);
+    state.phase = 'result';
+    render();
+  }, 400);
+}
+
+render();
+</script>
+</body>
+</html>
